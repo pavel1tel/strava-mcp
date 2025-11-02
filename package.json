@@ -4,7 +4,7 @@
   "description": "MCP server for Strava API",
   "mcpName": "io.github.r-huijts/strava-mcp",
   "repository": {
-    "type": "git", 
+    "type": "git",
     "url": "https://github.com/r-huijts/strava-mcp"
   },
   "main": "dist/server.js",
@@ -25,9 +25,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.8.0",
+    "@modelcontextprotocol/sdk": "^1.20.2",
+    "@types/express": "^5.0.5",
     "axios": "^1.6.0",
     "dotenv": "^16.3.0",
+    "express": "^5.1.0",
     "zod": "^3.22.0"
   },
   "devDependencies": {

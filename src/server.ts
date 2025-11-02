@@ -1,6 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import * as dotenv from "dotenv";
+import express from "express";
+import { randomUUID } from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -194,14 +197,62 @@ export function formatDuration(seconds: number): string {
 // --- Server Startup ---
 async function startServer() {
   try {
-    console.error("Starting Strava MCP Server...");
-    const transport = new StdioServerTransport();
-    await server.connect(transport);
-    console.error(`Strava MCP Server connected via Stdio. Tools registered.`);
+    const transportType = process.env.TRANSPORT_TYPE || 'stdio';
+
+    if (transportType === 'http') {
+      console.error("Starting Strava MCP Server with Streamable HTTP transport...");
+      const app = express();
+      const port = parseInt(process.env.PORT || '3000');
+
+      app.use(express.json());
+
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => randomUUID(),
+        onsessioninitialized: (sessionId) => {
+          console.error(`StreamableHTTP session initialized with ID: ${sessionId}`);
+        },
+        onsessionclosed: (sessionId) => {
+          console.error(`StreamableHTTP session closed with ID: ${sessionId}`);
+        }
+      });
+
+      await server.connect(transport);
+
+      app.all('/mcp', async (req, res) => {
+        try {
+          await transport.handleRequest(req, res, req.body);
+        } catch (error) {
+          console.error('Error handling MCP request:', error);
+          if (!res.headersSent) {
+            res.status(500).json({ error: 'Internal server error' });
+          }
+        }
+      });
+
+      return new Promise<void>((_resolve, reject) => {
+        app.listen(port, (error?: Error) => {
+          if (error) {
+            console.error('Failed to start HTTP server:', error);
+            reject(error);
+            return;
+          }
+          console.error(`Strava MCP Server running on HTTP port ${port}`);
+          console.error(`MCP endpoint available at http://localhost:${port}/mcp`);
+        });
+      });
+    } else {
+      console.error("Starting Strava MCP Server with Stdio transport...");
+      const transport = new StdioServerTransport();
+      await server.connect(transport);
+      console.error(`Strava MCP Server connected via Stdio. Tools registered.`);
+    }
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);
   }
 }
 
-startServer();
+startServer().catch(error => {
+  console.error("Server failed to start:", error);
+  process.exit(1);
+});
