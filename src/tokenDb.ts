@@ -1,8 +1,5 @@
 import { Pool } from 'pg';
 
-// Database connection string
-const DATABASE_URL = 'postgresql://postgres:bgYBFteXdtavkNORLLhRLxjtkmzsHjpG@crossover.proxy.rlwy.net:35171/railway';
-
 // Create a connection pool
 let pool: Pool | null = null;
 
@@ -11,8 +8,12 @@ let pool: Pool | null = null;
  */
 function getPool(): Pool {
     if (!pool) {
+        const databaseUrl = process.env.DATABASE_URL;
+        if (!databaseUrl) {
+            throw new Error('DATABASE_URL environment variable is not set. Please set it in your .env file.');
+        }
         pool = new Pool({
-            connectionString: DATABASE_URL,
+            connectionString: databaseUrl,
             ssl: {
                 rejectUnauthorized: false // Railway PostgreSQL may require this
             }
