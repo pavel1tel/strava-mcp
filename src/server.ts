@@ -3,7 +3,6 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import * as dotenv from "dotenv";
 import express from "express";
-import { randomUUID } from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -200,26 +199,22 @@ async function startServer() {
     const transportType = process.env.TRANSPORT_TYPE || 'stdio';
 
     if (transportType === 'http') {
-      console.error("Starting Strava MCP Server with Streamable HTTP transport...");
+      console.error("Starting Strava MCP Server with stateless Streamable HTTP transport...");
       const app = express();
       const port = parseInt(process.env.PORT || '3000');
 
       app.use(express.json());
 
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-        onsessioninitialized: (sessionId) => {
-          console.error(`StreamableHTTP session initialized with ID: ${sessionId}`);
-        },
-        onsessionclosed: (sessionId) => {
-          console.error(`StreamableHTTP session closed with ID: ${sessionId}`);
-        }
-      });
-
-      await server.connect(transport);
+      
 
       app.all('/mcp', async (req, res) => {
         try {
+          const transport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: undefined,
+            enableJsonResponse: false
+          });
+    
+          await server.connect(transport);
           await transport.handleRequest(req, res, req.body);
         } catch (error) {
           console.error('Error handling MCP request:', error);
