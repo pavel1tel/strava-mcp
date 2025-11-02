@@ -3,6 +3,7 @@ import { z } from "zod";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { saveTokensToDb, loadTokensFromDb } from "./tokenDb.js";
 
 // --- Axios Instance & Interceptor --- 
 // Create an Axios instance to apply interceptors globally for this client
@@ -317,11 +318,20 @@ const projectRoot = path.resolve(__dirname, '..');
 const envPath = path.join(projectRoot, '.env');
 
 /**
- * Updates the .env file with new access and refresh tokens
+ * Updates the database and optionally .env file with new access and refresh tokens
  * @param accessToken - The new access token
  * @param refreshToken - The new refresh token
  */
 async function updateTokensInEnvFile(accessToken: string, refreshToken: string): Promise<void> {
+    // First, save to database (primary storage)
+    try {
+        await saveTokensToDb(accessToken, refreshToken);
+    } catch (error) {
+        console.error('Failed to save tokens to database:', error);
+        // Continue to try .env file as backup
+    }
+
+    // Also update .env file for backward compatibility (but this may not work in Docker)
     try {
         let envContent = await fs.readFile(envPath, 'utf-8');
         const lines = envContent.split('\n');
@@ -349,10 +359,10 @@ async function updateTokensInEnvFile(accessToken: string, refreshToken: string):
         }
 
         await fs.writeFile(envPath, newLines.join('\n').trim() + '\n');
-        console.error('✅ Tokens successfully refreshed and updated in .env file.');
+        console.error('✅ Tokens also updated in .env file (if available).');
     } catch (error) {
-        console.error('Failed to update tokens in .env file:', error);
-        // Continue execution even if file update fails
+        // .env file update is optional in Docker, so just log and continue
+        console.error('⚠️ Could not update .env file (expected in Docker):', error instanceof Error ? error.message : String(error));
     }
 }
 
@@ -361,12 +371,21 @@ async function updateTokensInEnvFile(accessToken: string, refreshToken: string):
  * @returns The new access token
  */
 async function refreshAccessToken(): Promise<string> {
+    // If tokens are not in env, try loading from database first
+    if (!process.env.STRAVA_REFRESH_TOKEN) {
+        try {
+            await loadTokensFromDb();
+        } catch (error) {
+            console.error('Failed to load tokens from database:', error);
+        }
+    }
+
     const refreshToken = process.env.STRAVA_REFRESH_TOKEN;
     const clientId = process.env.STRAVA_CLIENT_ID;
     const clientSecret = process.env.STRAVA_CLIENT_SECRET;
 
     if (!refreshToken || !clientId || !clientSecret) {
-        throw new Error("Missing refresh credentials in .env (STRAVA_REFRESH_TOKEN, STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET)");
+        throw new Error("Missing refresh credentials (STRAVA_REFRESH_TOKEN, STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET)");
     }
 
     try {

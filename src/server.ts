@@ -26,6 +26,7 @@ import { getActivityStreamsTool } from './tools/getActivityStreams.js';
 import { getActivityLapsTool } from './tools/getActivityLaps.js';
 import { getAthleteZonesTool } from './tools/getAthleteZones.js';
 import { getAllActivities } from './tools/getAllActivities.js';
+import { loadTokensFromDb } from './tokenDb.js';
 
 // Import the actual client function
 // import {
@@ -196,6 +197,14 @@ export function formatDuration(seconds: number): string {
 // --- Server Startup ---
 async function startServer() {
   try {
+    // Load tokens from database (will override env vars if present)
+    try {
+      await loadTokensFromDb();
+    } catch (error) {
+      console.error('Failed to load tokens from database at startup:', error);
+      // Continue with env vars as fallback
+    }
+
     const transportType = process.env.TRANSPORT_TYPE || 'stdio';
 
     if (transportType === 'http') {

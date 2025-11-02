@@ -4,6 +4,7 @@ import * as readline from 'readline/promises';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { saveTokensToDb } from '../src/tokenDb.js';
 
 // Define required scopes for all current and planned tools
 // Explicitly request profile and activity read access.
@@ -145,6 +146,16 @@ async function main() {
     const save = await promptUser('\nDo you want to save these tokens to your .env file? (yes/no): ');
 
     if (save.toLowerCase() === 'yes' || save.toLowerCase() === 'y') {
+        // Save to database (primary storage)
+        try {
+            await saveTokensToDb(access_token, refresh_token);
+            console.log('✅ Tokens saved to database.');
+        } catch (error) {
+            console.error('⚠️ Failed to save tokens to database:', error);
+            console.log('Continuing to save to .env file...');
+        }
+        
+        // Also save to .env file for backward compatibility
         await updateEnvFile({ accessToken: access_token, refreshToken: refresh_token });
         // Optionally save client_id and client_secret if they weren't in .env initially
         let envContent = '';
